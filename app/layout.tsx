@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const siteUrl = new URL("https://brasilreceitas.com.br");
 
@@ -78,7 +79,10 @@ export default function RootLayout({
         )}
       </head>
 
-      <body>{children}</body>
+      <body>
+        {children}
+        <SpeedInsights />
+      </body>
 
       {/* JSON-LD: WebSite + SearchAction (aponta para /buscar?q=...) */}
       <Script
