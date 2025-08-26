@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 /* =========================
    Tipos
@@ -109,14 +110,16 @@ export default function SearchClient({
 
           <h1 className="flex items-center gap-2 text-balance text-3xl font-extrabold tracking-tight text-stone-800 sm:text-4xl">
             <span className="mr-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-1">
-              <Image
-                src="/logo.png"
-                alt="Logo do Brasil Receitas"
-                width={40}
-                height={40}
-                className="h-10 w-10 object-contain"
-                priority
-              />
+              <Link href="/">
+                <Image
+                  src="/logo.png"
+                  alt="Logo do Brasil Receitas"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
+                  priority
+                />
+              </Link>
             </span>
             Brasil Receitas
           </h1>
