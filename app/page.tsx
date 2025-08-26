@@ -33,6 +33,7 @@ export default function Home() {
   ];
 
   return (
+    
     <main className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-rose-50">
       <header className="relative overflow-hidden border-b border-amber-100/70 bg-white/60 backdrop-blur">
         <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-14">
