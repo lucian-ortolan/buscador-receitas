@@ -26,7 +26,10 @@ export default function Home() {
     "bolo de cenoura",
     "lasanha vegana",
     "frango na airfryer",
+    "sem glúten",
+    "low carb",
     "sobremesa rápida",
+    "macarrão de panela",
   ];
 
   return (
