@@ -8,7 +8,7 @@ const siteUrl = new URL("https://brasilreceitas.com.br");
 export const metadata: Metadata = {
   metadataBase: siteUrl,
   title: {
-    default: "Brasil Receitas – Buscador de receitas",
+    default: "Brasil Receitas - Buscador de receitas",
     template: "%s | Brasil Receitas",
   },
   description:
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     type: "website",
     url: siteUrl.toString(),
     siteName: "Brasil Receitas",
-    title: "Brasil Receitas – Buscador de receitas",
+    title: "Brasil Receitas - Buscador de receitas",
     description:
       "Busque receitas em sites confiáveis. Nós só redirecionamos para o site original.",
     images: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Brasil Receitas – Buscador de receitas",
+    title: "Brasil Receitas - Buscador de receitas",
     description:
       "Busque receitas em sites confiáveis. Nós só redirecionamos para o site original.",
     images: ["/og-cover.png"],
