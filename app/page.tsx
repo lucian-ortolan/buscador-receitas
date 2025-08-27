@@ -110,6 +110,16 @@ export default function Home() {
       <footer className="border-t border-amber-100/70 bg-white/60 py-6 text-center text-xs text-stone-500">
         Conteúdo pertence aos sites de origem. Nós apenas redirecionamos você
         para a receita original. Bon appétit! 🥐
+        <p>
+          <a
+            href="https://www.lucianortolan.com"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            Desenvolvido por Lucian Ortolan
+          </a>
+        </p>
       </footer>
     </main>
   );
