@@ -2,14 +2,18 @@
 import type { Metadata } from "next";
 import SearchClient from "./search-client";
 
-type Props = {
-  searchParams: { q?: string };
-};
+type SearchParams = Promise<{ q?: string | string[] }>;
+type Props = { searchParams: SearchParams };
 
+// --- generateMetadata (já corrigido) ---
 export async function generateMetadata({
   searchParams,
-}: Props): Promise<Metadata> {
-  const q = (searchParams.q ?? "").trim();
+}: {
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const qRaw = Array.isArray(params.q) ? params.q[0] : params.q;
+  const q = (qRaw ?? "").trim();
 
   if (!q) {
     return {
@@ -38,7 +42,11 @@ export async function generateMetadata({
   };
 }
 
-export default function BuscarPage({ searchParams }: Props) {
-  const q = (searchParams.q ?? "").trim();
+// --- Página (corrigido: async + await searchParams) ---
+export default async function BuscarPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const qRaw = Array.isArray(params.q) ? params.q[0] : params.q;
+  const q = (qRaw ?? "").trim();
+
   return <SearchClient initialQuery={q} />;
 }
