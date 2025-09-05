@@ -256,7 +256,7 @@ export default function SearchClient({
                 <button
                   onClick={onPrev}
                   disabled={currentPage <= 1}
-                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50"
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50 cursor-pointer"
                   type="button"
                   aria-label="Página anterior"
                 >
@@ -265,7 +265,7 @@ export default function SearchClient({
                 <button
                   onClick={onNext}
                   disabled={currentPage >= totalPages}
-                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50"
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50 cursor-pointer"
                   type="button"
                   aria-label="Próxima página"
                 >
@@ -295,7 +295,7 @@ export default function SearchClient({
                     key={p}
                     onClick={() => goTo(p)}
                     aria-label={`Ir para página ${p}`}
-                    className={`h-2.5 w-2.5 rounded-full transition ${
+                    className={`h-3.5 w-3.5 rounded-full transition cursor-pointer ${
                       active
                         ? "bg-amber-500"
                         : "bg-stone-300 hover:bg-stone-400"
