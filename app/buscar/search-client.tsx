@@ -30,6 +30,10 @@ const SUGGESTED_TAGS: string[] = [
   "macarrão de panela",
 ];
 
+// paginação/carrossel
+const PER_PAGE = 10;
+const MAX_PAGES = 5; // até 50 resultados
+
 export default function SearchClient({
   initialQuery,
 }: {
@@ -43,19 +47,29 @@ export default function SearchClient({
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Página atual (URL: ?p=)
+  const urlPage = Math.max(1, Number(searchParams.get("p") ?? "1"));
+  const [page, setPage] = useState<number>(urlPage);
+
   // Sincroniza com a URL (compartilhável)
   useEffect(() => {
     const current = (searchParams.get("q") ?? "").trim();
+    const p = Math.max(1, Number(searchParams.get("p") ?? "1"));
+
     if (current && current !== q) {
       setQ(current);
-      void runSearch(current);
+      // ao mudar a busca via URL, reseta internamente e busca
+      void runSearch(current, p);
+    } else {
+      // se só mudar a página via URL, atualiza o estado da página
+      setPage(p);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   // Busca inicial (se veio com ?q=)
   useEffect(() => {
-    if (initialQuery) void runSearch(initialQuery);
+    if (initialQuery) void runSearch(initialQuery, urlPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -63,20 +77,33 @@ export default function SearchClient({
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    router.push(`/buscar?q=${encodeURIComponent(query)}`);
-    await runSearch(query);
+    // sempre inicia na página 1
+    pushUrl(query, 1);
+    await runSearch(query, 1);
   }
 
-  async function runSearch(query: string) {
+  function pushUrl(query: string, nextPage: number) {
+    const url = `/buscar?q=${encodeURIComponent(query)}&p=${nextPage}`;
+    router.push(url);
+    setPage(nextPage);
+  }
+
+  async function runSearch(query: string, nextPage = 1) {
     setLoading(true);
     setError(null);
     setResults([]);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      // Buscamos até 50 itens (5 páginas x 10 por página)
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(query)}&perPage=${
+          PER_PAGE * MAX_PAGES
+        }&page=1`
+      );
       if (!res.ok) throw new Error(`Falha ao buscar (${res.status})`);
       const raw: unknown = await res.json();
       const data = toApiResponse(raw);
-      setResults(data.items);
+      setResults(data.items ?? []);
+      setPage(nextPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
@@ -85,9 +112,9 @@ export default function SearchClient({
   }
 
   function applyTag(tag: string) {
-    setQ(tag); // substitui o conteúdo do input
-    router.push(`/buscar?q=${encodeURIComponent(tag)}`);
-    void runSearch(tag);
+    setQ(tag);
+    pushUrl(tag, 1);
+    void runSearch(tag, 1);
   }
 
   const headerSubtitle = useMemo(
@@ -97,6 +124,31 @@ export default function SearchClient({
   );
 
   const hasResults = results.length > 0;
+
+  // Paginação (client-side)
+  const totalPages = Math.min(
+    MAX_PAGES,
+    Math.max(1, Math.ceil(results.length / PER_PAGE))
+  );
+
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * PER_PAGE;
+  const end = start + PER_PAGE;
+  const pageItems = results.slice(start, end);
+
+  // Navegação do carrossel
+  function goTo(newPage: number) {
+    const normalized = Math.max(1, Math.min(totalPages, newPage));
+    pushUrl(q.trim(), normalized);
+  }
+
+  function onPrev() {
+    goTo(currentPage - 1);
+  }
+
+  function onNext() {
+    goTo(currentPage + 1);
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-rose-50">
@@ -177,7 +229,7 @@ export default function SearchClient({
         </div>
       </header>
 
-      {/* RESULTS + SIDEBAR GRID CONTAINER (sem ads por enquanto) */}
+      {/* RESULTS */}
       <section className="mx-auto max-w-4xl px-4 py-8 sm:py-10">
         {error && (
           <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700">
@@ -185,34 +237,75 @@ export default function SearchClient({
           </div>
         )}
 
-        {loading && (
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <li
-                key={i}
-                className="flex gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
-              >
-                <div className="h-20 w-24 animate-pulse rounded-xl bg-stone-200" />
-                <div className="flex flex-1 flex-col gap-2">
-                  <div className="h-4 w-5/6 animate-pulse rounded bg-stone-200" />
-                  <div className="h-3 w-2/5 animate-pulse rounded bg-stone-200" />
-                  <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-stone-100" />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        {loading && <CarouselSkeleton />}
 
         {!loading && !hasResults && !error && (
           <EmptyState onExampleClick={(t) => applyTag(t)} />
         )}
 
         {!loading && hasResults && (
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {results.map((r) => (
-              <ResultCard key={r.link} res={r} />
-            ))}
-          </ul>
+          <div className="relative">
+            {/* Controles */}
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm text-stone-600">
+                Página <strong>{currentPage}</strong> de{" "}
+                <strong>{totalPages}</strong>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onPrev}
+                  disabled={currentPage <= 1}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50"
+                  type="button"
+                  aria-label="Página anterior"
+                >
+                  ←
+                </button>
+                <button
+                  onClick={onNext}
+                  disabled={currentPage >= totalPages}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50"
+                  type="button"
+                  aria-label="Próxima página"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+
+            {/* Carrossel (apenas renderiza a página atual para simplicidade e performance) */}
+            <ul
+              className="grid gap-4 sm:grid-cols-2"
+              aria-live="polite"
+              aria-busy={loading ? "true" : "false"}
+            >
+              {pageItems.map((r, idx) => (
+                <ResultCard key={`${r.link}-${start + idx}`} res={r} />
+              ))}
+            </ul>
+
+            {/* Dots */}
+            <div className="mt-5 flex items-center justify-center gap-2">
+              {Array.from({ length: totalPages }).map((_, i) => {
+                const p = i + 1;
+                const active = p === currentPage;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => goTo(p)}
+                    aria-label={`Ir para página ${p}`}
+                    className={`h-2.5 w-2.5 rounded-full transition ${
+                      active
+                        ? "bg-amber-500"
+                        : "bg-stone-300 hover:bg-stone-400"
+                    }`}
+                    type="button"
+                  />
+                );
+              })}
+            </div>
+          </div>
         )}
       </section>
 
@@ -329,6 +422,40 @@ function EmptyState({
   );
 }
 
+function CarouselSkeleton() {
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="h-4 w-40 animate-pulse rounded bg-stone-200" />
+        <div className="flex gap-2">
+          <div className="h-8 w-10 animate-pulse rounded bg-stone-200" />
+          <div className="h-8 w-10 animate-pulse rounded bg-stone-200" />
+        </div>
+      </div>
+      <ul className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: PER_PAGE }).map((_, i) => (
+          <li
+            key={i}
+            className="flex gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+          >
+            <div className="h-20 w-24 animate-pulse rounded-xl bg-stone-200" />
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="h-4 w-5/6 animate-pulse rounded bg-stone-200" />
+              <div className="h-3 w-2/5 animate-pulse rounded bg-stone-200" />
+              <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-stone-100" />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-5 flex items-center justify-center gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-2.5 w-2.5 rounded-full bg-stone-200" />
+        ))}
+      </div>
+    </>
+  );
+}
+
 /* =========================
    Utilitários de tipos
 ========================= */
@@ -349,10 +476,13 @@ function toApiResponse(val: unknown): ApiResponse {
             typeof (it as { image?: unknown }).image === "undefined")
       )
       .map((it) => ({
-        title: it.title,
-        link: it.link,
-        displayLink: it.displayLink,
-        image: typeof it.image === "string" ? it.image : undefined,
+        title: (it as Result).title,
+        link: (it as Result).link,
+        displayLink: (it as Result).displayLink,
+        image:
+          typeof (it as Result).image === "string"
+            ? (it as Result).image
+            : undefined,
       }));
 
     return { items };
