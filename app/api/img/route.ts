@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // Limites seguros
 const MAX_WIDTH = 800; // proteção básica
@@ -42,12 +43,13 @@ export async function GET(req: Request) {
     const width = Math.min(widthParam, MAX_WIDTH);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     const upstream = await fetch(source.toString(), {
       signal: controller.signal,
       headers: {
-        "User-Agent": "BrasilReceitasBot/1.0 (+img-proxy)",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
         Accept: "image/avif,image/webp,image/*;q=0.8,*/*;q=0.5",
         Referer: source.origin,
       },
@@ -68,11 +70,20 @@ export async function GET(req: Request) {
     }
 
     const ctype = upstream.headers.get("content-type") || "";
-    if (!ctype.includes("image")) {
-      return NextResponse.json(
-        { error: "Upstream returned non-image content-type" },
-        { status: 502 }
-      );
+    const isImage = ctype.includes("image");
+    const disableRecompress =
+      (process.env.IMG_RECOMPRESS ?? "true").toLowerCase() === "false";
+
+    // Passthrough por streaming se não for imagem ou se recompressão estiver desabilitada
+    if (!isImage || disableRecompress) {
+      return new NextResponse(upstream.body, {
+        status: 200,
+        headers: {
+          "Content-Type": ctype || "application/octet-stream",
+          "Cache-Control":
+            "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      });
     }
 
     const arrayBuf = await upstream.arrayBuffer();
