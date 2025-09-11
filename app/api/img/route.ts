@@ -47,8 +47,8 @@ export async function GET(req: Request) {
     const upstream = await fetch(source.toString(), {
       signal: controller.signal,
       headers: { "User-Agent": "BrasilReceitasBot/1.0 (+img-proxy)" },
-    }).catch((err) => {
-      if ((err as any)?.name === "AbortError") {
+    }).catch((err: unknown) => {
+      if (isAbortError(err)) {
         throw new Error("Upstream timeout");
       }
       throw err;
@@ -87,4 +87,13 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
