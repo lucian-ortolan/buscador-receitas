@@ -77,25 +77,42 @@ export async function GET(req: Request) {
 
     const arrayBuf = await upstream.arrayBuffer();
 
-    const webp = await sharp(Buffer.from(arrayBuf))
-      .resize({ width, withoutEnlargement: true })
-      .webp({ quality: qualityParam })
-      .toBuffer();
+    // Tenta recomprimir; se falhar, devolve a imagem original
+    try {
+      const webp = await sharp(Buffer.from(arrayBuf))
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality: qualityParam })
+        .toBuffer();
 
-    const u8 = new Uint8Array(webp);
-    const blob = new Blob([u8], { type: "image/webp" });
+      const u8 = new Uint8Array(webp);
+      const blob = new Blob([u8], { type: "image/webp" });
 
-    const res = new NextResponse(blob, {
-      status: 200,
-      headers: {
-        "Content-Type": "image/webp",
-        // Cache curto no navegador e CDN (ajuste conforme estratégia)
-        "Cache-Control":
-          "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
-      },
-    });
-
-    return res;
+      const res = new NextResponse(blob, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/webp",
+          // Cache curto no navegador e CDN (ajuste conforme estratégia)
+          "Cache-Control":
+            "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      });
+      return res;
+    } catch {
+      // Fallback: retorna a imagem original sem recompressão
+      const origBlob = new Blob([arrayBuf], {
+        type:
+          upstream.headers.get("content-type") || "application/octet-stream",
+      });
+      return new NextResponse(origBlob, {
+        status: 200,
+        headers: {
+          "Content-Type":
+            upstream.headers.get("content-type") || "application/octet-stream",
+          "Cache-Control":
+            "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      });
+    }
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unexpected error" },
