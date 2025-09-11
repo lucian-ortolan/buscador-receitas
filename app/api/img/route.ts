@@ -70,12 +70,10 @@ export async function GET(req: Request) {
       .webp({ quality: qualityParam })
       .toBuffer();
 
-    const ab = webp.buffer.slice(
-      webp.byteOffset,
-      webp.byteOffset + webp.byteLength
-    );
+    const u8 = new Uint8Array(webp);
+    const blob = new Blob([u8], { type: "image/webp" });
 
-    const res = new NextResponse(ab, {
+    const res = new NextResponse(blob, {
       status: 200,
       headers: {
         "Content-Type": "image/webp",
