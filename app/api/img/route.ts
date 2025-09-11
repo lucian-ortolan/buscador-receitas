@@ -23,9 +23,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Invalid url" }, { status: 400 });
     }
 
-    if (source.protocol !== "https:") {
+    if (source.protocol !== "https:" && source.protocol !== "http:") {
       return NextResponse.json(
-        { error: "Only https allowed" },
+        { error: "Only http/https allowed" },
         { status: 400 }
       );
     }
@@ -46,7 +46,11 @@ export async function GET(req: Request) {
 
     const upstream = await fetch(source.toString(), {
       signal: controller.signal,
-      headers: { "User-Agent": "BrasilReceitasBot/1.0 (+img-proxy)" },
+      headers: {
+        "User-Agent": "BrasilReceitasBot/1.0 (+img-proxy)",
+        Accept: "image/avif,image/webp,image/*;q=0.8,*/*;q=0.5",
+        Referer: source.origin,
+      },
     }).catch((err: unknown) => {
       if (isAbortError(err)) {
         throw new Error("Upstream timeout");
@@ -59,6 +63,14 @@ export async function GET(req: Request) {
     if (!upstream.ok) {
       return NextResponse.json(
         { error: `Upstream error ${upstream.status}` },
+        { status: 502 }
+      );
+    }
+
+    const ctype = upstream.headers.get("content-type") || "";
+    if (!ctype.includes("image")) {
+      return NextResponse.json(
+        { error: "Upstream returned non-image content-type" },
         { status: 502 }
       );
     }
