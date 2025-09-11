@@ -331,13 +331,17 @@ function ResultCard({ res }: { res: Result }) {
     ? `/api/img?url=${encodeURIComponent(res.image)}&w=240&q=60`
     : null;
 
+  const [imgSrc, setImgSrc] = useState<string | null>(
+    proxied || res.image || null
+  );
+
   return (
     <li className="group relative flex gap-4 overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm transition hover:shadow-md">
       <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-100">
-        {proxied ? (
+        {imgSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxied}
+            src={imgSrc}
             alt=""
             className="h-full w-full object-cover transition group-hover:scale-[1.02]"
             loading="lazy"
@@ -345,6 +349,13 @@ function ResultCard({ res }: { res: Result }) {
             fetchPriority="low"
             referrerPolicy="no-referrer"
             sizes="(max-width: 640px) 100vw, 50vw"
+            onError={() => {
+              if (imgSrc !== res.image && res.image) {
+                setImgSrc(res.image);
+              } else {
+                setImgSrc(null);
+              }
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl">
