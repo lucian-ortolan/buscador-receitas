@@ -65,7 +65,7 @@ export default function RootLayout({
             <Script
               id="adsense-init"
               async
-              strategy="afterInteractive"
+              strategy="lazyOnload"
               src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8277247376209096"
               crossOrigin="anonymous"
             />
@@ -73,10 +73,10 @@ export default function RootLayout({
             {/* Scripts do Google Ads (gtag.js) - ADICIONADO AQUI */}
             <Script
               id="google-ads-library"
-              strategy="afterInteractive"
+              strategy="lazyOnload"
               src="https://www.googletagmanager.com/gtag/js?id=AW-17528868804"
             />
-            <Script id="google-ads-config" strategy="afterInteractive">
+            <Script id="google-ads-config" strategy="lazyOnload">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}

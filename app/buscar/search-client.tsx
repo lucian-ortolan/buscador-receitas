@@ -1,7 +1,7 @@
 // app/buscar/search-client.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, startTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -46,23 +46,26 @@ export default function SearchClient({
   const [loading, setLoading] = useState<boolean>(false);
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Página atual (URL: ?p=)
   const urlPage = Math.max(1, Number(searchParams.get("p") ?? "1"));
   const [page, setPage] = useState<number>(urlPage);
+  const [lastPageCount, setLastPageCount] = useState<number>(0);
 
   // Sincroniza com a URL (compartilhável)
   useEffect(() => {
     const current = (searchParams.get("q") ?? "").trim();
     const p = Math.max(1, Number(searchParams.get("p") ?? "1"));
 
-    if (current && current !== q) {
+    if (current && (current !== q || p !== page)) {
       setQ(current);
-      // ao mudar a busca via URL, reseta internamente e busca
-      void runSearch(current, p);
-    } else {
-      // se só mudar a página via URL, atualiza o estado da página
-      setPage(p);
+      startTransition(() => {
+        void runSearch(current, p);
+      });
+    } else if (!current) {
+      setResults([]);
+      setLastPageCount(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -79,35 +82,48 @@ export default function SearchClient({
     if (!query) return;
     // sempre inicia na página 1
     pushUrl(query, 1);
-    await runSearch(query, 1);
+    startTransition(() => {
+      void runSearch(query, 1);
+    });
   }
 
   function pushUrl(query: string, nextPage: number) {
     const url = `/buscar?q=${encodeURIComponent(query)}&p=${nextPage}`;
-    router.push(url);
+    router.replace(url);
     setPage(nextPage);
   }
 
   async function runSearch(query: string, nextPage = 1) {
+    // cancela requisição anterior se houver
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
     setResults([]);
     try {
-      // Buscamos até 50 itens (5 páginas x 10 por página)
       const res = await fetch(
-        `/api/search?q=${encodeURIComponent(query)}&perPage=${
-          PER_PAGE * MAX_PAGES
-        }&page=1`
+        `/api/search?q=${encodeURIComponent(
+          query
+        )}&perPage=${PER_PAGE}&page=${nextPage}`,
+        { signal: controller.signal, keepalive: true, cache: "no-store" }
       );
       if (!res.ok) throw new Error(`Falha ao buscar (${res.status})`);
       const raw: unknown = await res.json();
+      // se foi abortado, não atualiza estado
+      if (controller.signal.aborted) return;
       const data = toApiResponse(raw);
       setResults(data.items ?? []);
+      setLastPageCount((data.items ?? []).length);
       setPage(nextPage);
-    } catch (err) {
+    } catch (err: unknown) {
+      if (isAbortError(err)) return;
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
@@ -125,35 +141,33 @@ export default function SearchClient({
 
   const hasResults = results.length > 0;
 
-  // Paginação (client-side)
-  const totalPages = Math.min(
-    MAX_PAGES,
-    Math.max(1, Math.ceil(results.length / PER_PAGE))
-  );
+  // Paginação (server-side por página)
+  const currentPage = page;
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < MAX_PAGES && lastPageCount === PER_PAGE;
 
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * PER_PAGE;
-  const end = start + PER_PAGE;
-  const pageItems = results.slice(start, end);
-
-  // Navegação do carrossel
+  // Navegação
   function goTo(newPage: number) {
-    const normalized = Math.max(1, Math.min(totalPages, newPage));
-    pushUrl(q.trim(), normalized);
+    const normalized = Math.max(1, Math.min(MAX_PAGES, newPage));
+    const trimmed = q.trim();
+    pushUrl(trimmed, normalized);
+    startTransition(() => {
+      void runSearch(trimmed, normalized);
+    });
   }
 
   function onPrev() {
-    goTo(currentPage - 1);
+    if (canPrev) goTo(currentPage - 1);
   }
 
   function onNext() {
-    goTo(currentPage + 1);
+    if (canNext) goTo(currentPage + 1);
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-rose-50">
       {/* HERO */}
-      <header className="relative overflow-hidden border-b border-amber-100/70 bg-white/60 backdrop-blur">
+      <header className="relative overflow-hidden border-b border-amber-100/70 bg-white/60 md:backdrop-blur">
         <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-10 sm:py-14">
           <div className="inline-flex items-center gap-2 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
             <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
@@ -162,14 +176,13 @@ export default function SearchClient({
 
           <h1 className="flex items-center gap-2 text-balance text-3xl font-extrabold tracking-tight text-stone-800 sm:text-4xl">
             <span className="mr-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-1">
-              <Link href="/">
+              <Link href="/" prefetch={false}>
                 <Image
                   src="/logo.png"
                   alt="Logo do Brasil Receitas"
                   width={40}
                   height={40}
                   className="h-10 w-10 object-contain"
-                  priority
                 />
               </Link>
             </span>
@@ -248,14 +261,13 @@ export default function SearchClient({
             {/* Controles */}
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm text-stone-600">
-                Página <strong>{currentPage}</strong> de{" "}
-                <strong>{totalPages}</strong>
+                Página <strong>{currentPage}</strong>
               </span>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={onPrev}
-                  disabled={currentPage <= 1}
+                  disabled={!canPrev}
                   className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50 cursor-pointer"
                   type="button"
                   aria-label="Página anterior"
@@ -264,7 +276,7 @@ export default function SearchClient({
                 </button>
                 <button
                   onClick={onNext}
-                  disabled={currentPage >= totalPages}
+                  disabled={!canNext}
                   className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-700 shadow-sm disabled:opacity-50 cursor-pointer"
                   type="button"
                   aria-label="Próxima página"
@@ -274,37 +286,16 @@ export default function SearchClient({
               </div>
             </div>
 
-            {/* Carrossel (apenas renderiza a página atual para simplicidade e performance) */}
+            {/* Lista da página atual */}
             <ul
               className="grid gap-4 sm:grid-cols-2"
               aria-live="polite"
               aria-busy={loading ? "true" : "false"}
             >
-              {pageItems.map((r, idx) => (
-                <ResultCard key={`${r.link}-${start + idx}`} res={r} />
+              {results.map((r, idx) => (
+                <ResultCard key={`${r.link}-${idx}`} res={r} />
               ))}
             </ul>
-
-            {/* Dots */}
-            <div className="mt-5 flex items-center justify-center gap-2">
-              {Array.from({ length: totalPages }).map((_, i) => {
-                const p = i + 1;
-                const active = p === currentPage;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => goTo(p)}
-                    aria-label={`Ir para página ${p}`}
-                    className={`h-3.5 w-3.5 rounded-full transition cursor-pointer ${
-                      active
-                        ? "bg-amber-500"
-                        : "bg-stone-300 hover:bg-stone-400"
-                    }`}
-                    type="button"
-                  />
-                );
-              })}
-            </div>
           </div>
         )}
       </section>
@@ -336,16 +327,24 @@ function ResultCard({ res }: { res: Result }) {
   const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
     res.displayLink
   )}&sz=32`;
+  const proxied = res.image
+    ? `/api/img?url=${encodeURIComponent(res.image)}&w=240&q=60`
+    : null;
 
   return (
     <li className="group relative flex gap-4 overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm transition hover:shadow-md">
       <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-100">
-        {res.image ? (
+        {proxied ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={res.image}
+            src={proxied}
             alt=""
             className="h-full w-full object-cover transition group-hover:scale-[1.02]"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+            referrerPolicy="no-referrer"
+            sizes="(max-width: 640px) 100vw, 50vw"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl">
@@ -373,6 +372,9 @@ function ResultCard({ res }: { res: Result }) {
             className="h-4 w-4 rounded"
             width={16}
             height={16}
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
           />
           <span>{res.displayLink}</span>
         </div>
@@ -488,6 +490,15 @@ function toApiResponse(val: unknown): ApiResponse {
     return { items };
   }
   return { items: [] };
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
 
 /* =========================

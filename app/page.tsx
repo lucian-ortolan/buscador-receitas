@@ -20,7 +20,8 @@ export default function Home() {
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    router.push(`/buscar?q=${encodeURIComponent(query)}`);
+    // usa replace para evitar histórico extra e reduzir custo de navegação repetida
+    router.replace(`/buscar?q=${encodeURIComponent(query)}`);
   }
 
   const tags: string[] = [
